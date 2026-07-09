@@ -26,6 +26,10 @@ export type Contact = {
   address_status: EnrichStatus;
   enrichment_confidence: number | null;
   photo_url: string | null;
+  origin: string | null;
+  pipedrive_deal_id: number | null;
+  deal_stage: string | null;
+  deal_value_eur: number | null;
   accounts?: Account | null;
 };
 
@@ -63,6 +67,10 @@ export type Relationship = {
   warmth: number;
   level: "inconnu" | "contact" | "connexion" | "champion" | "ambassadeur";
   xp: number;
+  warmth_reason: string | null;
+  conversation_summary: string | null;
+  opportunity: number | null;
+  opportunity_reason: string | null;
 };
 
 export type Channel = "email" | "linkedin" | "carte_manuscrite" | "cadeau" | "cadeau_legendaire";

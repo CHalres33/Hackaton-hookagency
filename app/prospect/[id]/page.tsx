@@ -50,6 +50,7 @@ export default function ProspectPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [journey, setJourney] = useState<JourneyItem[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: p }, { data: r }, { data: s }, { data: j }] = await Promise.all([
@@ -88,6 +89,20 @@ export default function ProspectPage() {
       });
     } finally {
       setScanning(false);
+      load();
+    }
+  }
+
+  async function summarize() {
+    setSummarizing(true);
+    try {
+      await fetch("/api/relationship/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contactId }),
+      });
+    } finally {
+      setSummarizing(false);
       load();
     }
   }
@@ -135,6 +150,41 @@ export default function ProspectPage() {
               ))}
             </div>
             <div className="mt-2 text-right text-xs text-muted">⚡ {rel?.xp ?? 0} XP relation</div>
+          </div>
+
+          {contact.origin === "pipedrive" && (
+            <div className="mt-4 flex items-center justify-between text-xs">
+              <span className="rounded-full bg-panel2 px-2 py-0.5 text-muted">{contact.deal_stage}</span>
+              {contact.deal_value_eur ? (
+                <span className="font-medium text-gold">{Math.round(contact.deal_value_eur)}€</span>
+              ) : null}
+            </div>
+          )}
+
+          {(rel?.warmth_reason || rel?.opportunity_reason) && (
+            <p className="mt-2 text-xs text-muted">
+              {rel?.warmth_reason} {rel?.opportunity_reason ? `— ${rel.opportunity_reason}` : ""}
+            </p>
+          )}
+
+          <div className="mt-4 border-t border-bdr pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Résumé de la relation</h3>
+              <button
+                onClick={summarize}
+                disabled={summarizing}
+                className="rounded-full bg-panel2 px-3 py-1 text-[11px] font-medium hover:bg-bdr disabled:opacity-60"
+              >
+                {summarizing ? "Analyse…" : "🧠 Résumer"}
+              </button>
+            </div>
+            {rel?.conversation_summary ? (
+              <p className="text-xs text-txt/80">{rel.conversation_summary}</p>
+            ) : (
+              <p className="text-xs text-muted">
+                Pas encore de résumé. Clique sur « Résumer » pour analyser les échanges.
+              </p>
+            )}
           </div>
         </div>
 

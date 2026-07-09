@@ -8,6 +8,7 @@ import type { GameState } from "@/lib/types";
 
 const NAV = [
   { href: "/", label: "Fil d'actualité" },
+  { href: "/radar", label: "Radar pipeline" },
   { href: "/validation", label: "File de validation" },
   { href: "/prospects", label: "Prospects" },
 ];
