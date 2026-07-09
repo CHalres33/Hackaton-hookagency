@@ -37,6 +37,13 @@ export default function ValidationQueue() {
     const message = editing[a.id] ?? a.message;
     await supabase.from("actions").update({ status, message }).eq("id", a.id);
     if (status === "approved") {
+      if (a.channel === "carte_manuscrite") {
+        fetch("/api/actions/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action_id: a.id }),
+        });
+      }
       const xp = XP_BY_CHANNEL[a.channel] ?? 10;
       const { data: g } = await supabase.from("game_state").select("*").eq("id", 1).single();
       const badges: string[] = g?.badges ?? [];
