@@ -71,6 +71,18 @@ supabase.from("v_contact_journey").select("*").eq("contact_id", id).order("at");
 
 Sillage tracke désormais nos **champions** (agent 2543, watchlist 22) : quand un champion change de boîte, un signal `champion_move` arrive → nouvelle porte chaude dans un nouveau compte → Madeleine relance la relation là-bas. Section « Prospection » du dashboard : liste des champions (contacts niveau `champion`/`ambassadeur`), bouton « Scanner » (POST /api/agent/run {contact_id}), et la frise de chacun.
 
+## Canaux d'exécution (à l'approbation d'une action)
+
+`POST /api/actions/send { action_id }` route selon le canal :
+- **email** → pousse le contact (+ message Madeleine en variable `{{madeleine_message}}`) dans une campagne **Instantly**. Sélecteur de campagne : `GET /api/instantly/campaigns`. Défaut : `INSTANTLY_CAMPAIGN_ID`.
+- **carte_manuscrite** → **Handwrytten** (envoi physique réel).
+- **linkedin / cadeau** → passe en `approved` (exécution manuelle pour l'instant).
+
+## Sources de chaleur relationnelle
+
+- `POST /api/sync/heyreach` : conversations LinkedIn (HeyReach) → `relationship_events` + recalcul `relationships.warmth`/`level`. (0 match sur les contacts démo = normal, ce sont les hosts, pas les prospects Hook.)
+- `POST /api/sync/sillage` : détections Sillage → `signals`.
+
 ## Champs qui font la démo
 
 Sur une carte de validation, afficher absolument : `actions.justification` (le raisonnement signal × chaleur × passion × creep-safety — c'est ce que le jury lit), `gift_name` + `gift_url` + `gift_price_eur`, et le `message` rendu en style manuscrit.
