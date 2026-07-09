@@ -136,13 +136,17 @@ function AddProspectModal({ onClose }: { onClose: () => void }) {
     setState("creating");
     const slug = url.split("/in/")[1]?.replace(/\/$/, "").split("?")[0] ?? "prospect";
     const guess = slug.replace(/-\w{6,}$/, "").split("-");
+    // upsert sur linkedin_url : si le profil existe déjà, on le ré-enrichit au lieu de créer un doublon
     const { data, error } = await supabase
       .from("contacts")
-      .insert({
-        firstname: guess[0] ? guess[0][0].toUpperCase() + guess[0].slice(1) : "Prospect",
-        lastname: guess.slice(1).join(" ") || "LinkedIn",
-        linkedin_url: url,
-      })
+      .upsert(
+        {
+          firstname: guess[0] ? guess[0][0].toUpperCase() + guess[0].slice(1) : "Prospect",
+          lastname: guess.slice(1).join(" ") || "LinkedIn",
+          linkedin_url: url,
+        },
+        { onConflict: "linkedin_url" },
+      )
       .select("id")
       .single();
     if (error || !data) {

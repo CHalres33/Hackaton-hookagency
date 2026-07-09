@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { enrichAndWait } from "@/lib/fullenrich";
+import { enrichAndWait, parseEnrichmentItem } from "@/lib/fullenrich";
 
 export const maxDuration = 300;
 
@@ -37,37 +37,12 @@ export async function POST(req: NextRequest) {
         company_name: acc?.name,
         linkedin_url: c.linkedin_url ?? undefined,
       });
-      const first = (r as { datas?: Array<{ contact?: {
-        emails?: Array<{ email: string }>; phones?: Array<{ number: string }>;
-        current_title?: string; current_company_name?: string;
-        location?: { city?: string; country?: string };
-        employment?: { current?: { title?: string; company?: { name?: string; domain?: string } } };
-      } }> }).datas?.[0];
-      const ct = first?.contact;
-      const email = ct?.emails?.[0]?.email;
-      const phone = ct?.phones?.[0]?.number;
-      const title = ct?.current_title ?? ct?.employment?.current?.title;
-      const city = ct?.location?.city;
-      const country = ct?.location?.country;
-      const companyName = ct?.current_company_name ?? ct?.employment?.current?.company?.name;
-      const companyDomain = ct?.employment?.current?.company?.domain;
-
-      let accountId = c.account_id;
-      if (!accountId && (companyDomain || companyName)) {
-        const { data: a } = await db.from("accounts")
-          .upsert({ domain: companyDomain ?? `${companyName}`.toLowerCase().replace(/\s+/g, "-") + ".unknown", name: companyName ?? companyDomain }, { onConflict: "domain" })
-          .select("id").single();
-        accountId = a?.id ?? null;
-      }
-
+      const { email, phone } = parseEnrichmentItem(r);
       await db.from("contacts").update({
         email: email ?? null, email_status: email ? "found" : "failed",
         phone: phone ?? null, phone_status: phone ? "found" : "failed",
-        job_title: title ?? c.job_title, city: city ?? c.city, country: country ?? c.country,
-        account_id: accountId,
       }).eq("id", c.id);
-
-      results.push({ contact_id: c.id, name: `${c.firstname} ${c.lastname}`, email: email ?? "—", phone: phone ?? "—", job_title: title ?? "—" });
+      results.push({ contact_id: c.id, name: `${c.firstname} ${c.lastname}`, email: email ?? "—", phone: phone ?? "—" });
     } catch (e) {
       results.push({ contact_id: c.id, error: String(e) });
     }

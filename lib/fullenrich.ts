@@ -16,19 +16,24 @@ export async function enrichContact(c: {
   company_name?: string;
   linkedin_url?: string;
 }) {
+  // Écarter les domaines bidons (ex. fallback "*.unknown") que FullEnrich rejette
+  const validDomain =
+    c.company_domain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(c.company_domain) && !c.company_domain.endsWith(".unknown")
+      ? c.company_domain
+      : undefined;
   const res = await fetch(`${BASE}/contact/enrich/bulk`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({
       name: `madeleine-${c.firstname}-${c.lastname}`,
-      datas: [
+      data: [
         {
-          firstname: c.firstname,
-          lastname: c.lastname,
-          domain: c.company_domain,
+          first_name: c.firstname,
+          last_name: c.lastname,
+          domain: validDomain,
           company_name: c.company_name,
           linkedin_url: c.linkedin_url,
-          enrich_fields: ["contact.emails", "contact.phones"],
+          enrich_fields: ["contact.work_emails", "contact.personal_emails", "contact.phones"],
         },
       ],
     }),
@@ -36,6 +41,27 @@ export async function enrichContact(c: {
   if (!res.ok) throw new Error(`FullEnrich enrich ${res.status}: ${await res.text()}`);
   const { enrichment_id } = (await res.json()) as { enrichment_id: string };
   return enrichment_id;
+}
+
+// Extrait email + téléphone de la réponse d'enrichissement (forme réelle: datas[].contact_info)
+export function parseEnrichmentItem(result: unknown): { email?: string; phone?: string } {
+  const r = result as { datas?: unknown[]; data?: unknown[] };
+  const item = (r.datas?.[0] ?? r.data?.[0]) as
+    | {
+        contact_info?: {
+          most_probable_work_email?: { email?: string };
+          most_probable_phone?: { number?: string };
+          work_emails?: Array<{ email?: string }>;
+          personal_emails?: Array<{ email?: string }>;
+          phones?: Array<{ number?: string }>;
+        };
+      }
+    | undefined;
+  const ci = item?.contact_info;
+  return {
+    email: ci?.most_probable_work_email?.email ?? ci?.work_emails?.[0]?.email ?? ci?.personal_emails?.[0]?.email,
+    phone: ci?.most_probable_phone?.number ?? ci?.phones?.[0]?.number,
+  };
 }
 
 export async function getEnrichment(enrichmentId: string) {

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase";
-import { enrichAndWait } from "@/lib/fullenrich";
+import { enrichAndWait, parseEnrichmentItem } from "@/lib/fullenrich";
 import { querySignals, mapSignalType } from "@/lib/sillage";
 import { scrapeLinkedinPosts, scrapeInstagramProfile } from "@/lib/apify";
 import { scanMarket } from "@/lib/prospection";
@@ -226,42 +226,7 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
         company_name: c.accounts?.name,
         linkedin_url: c.linkedin_url ?? undefined,
       });
-      const first = (
-        result as {
-          datas?: Array<{
-            contact?: {
-              emails?: Array<{ email: string }>;
-              phones?: Array<{ number: string }>;
-              current_title?: string;
-              current_company_name?: string;
-              location?: { city?: string; country?: string };
-              linkedin_url?: string;
-              employment?: { current?: { title?: string; company?: { name?: string; domain?: string } } };
-            };
-          }>;
-        }
-      ).datas?.[0];
-      const ct = first?.contact;
-      const email = ct?.emails?.[0]?.email;
-      const phone = ct?.phones?.[0]?.number;
-      // Infos pro : titre, entreprise, ville — pour remplir la fiche
-      const title = ct?.current_title ?? ct?.employment?.current?.title;
-      const companyName = ct?.current_company_name ?? ct?.employment?.current?.company?.name;
-      const companyDomain = ct?.employment?.current?.company?.domain;
-      const city = ct?.location?.city;
-      const country = ct?.location?.country;
-
-      // Rattacher / créer le compte si on a une entreprise
-      let accountId = c.account_id as number | null;
-      if (!accountId && (companyDomain || companyName)) {
-        const { data: acc } = await db
-          .from("accounts")
-          .upsert({ domain: companyDomain ?? `${companyName}`.toLowerCase().replace(/\s+/g, "-") + ".unknown", name: companyName ?? companyDomain }, { onConflict: "domain" })
-          .select("id")
-          .single();
-        accountId = acc?.id ?? null;
-      }
-
+      const { email, phone } = parseEnrichmentItem(result);
       await db
         .from("contacts")
         .update({
@@ -269,19 +234,9 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
           email_status: email ? "found" : "failed",
           phone: phone ?? null,
           phone_status: phone ? "found" : "failed",
-          job_title: title ?? c.job_title,
-          city: city ?? c.city,
-          country: country ?? c.country,
-          account_id: accountId,
         })
         .eq("id", id);
-      return JSON.stringify({
-        email: email ?? "non trouvé",
-        phone: phone ?? "non trouvé",
-        job_title: title ?? "—",
-        company: companyName ?? "—",
-        city: city ?? "—",
-      });
+      return JSON.stringify({ email: email ?? "non trouvé", phone: phone ?? "non trouvé" });
     }
     case "save_passion": {
       const { data, error } = await db
