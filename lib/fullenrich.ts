@@ -55,3 +55,38 @@ export async function enrichAndWait(c: Parameters<typeof enrichContact>[0], time
   }
   return { status: "TIMEOUT", enrichment_id: id };
 }
+
+// --- Search People (scan de marché) ---
+export type SearchFilter = { value: string; exact_match?: boolean; exclude?: boolean };
+
+export async function searchPeople(opts: {
+  titles?: string[];
+  domains?: string[];
+  locations?: string[];
+  limit?: number;
+  offset?: number;
+}) {
+  const body: Record<string, unknown> = {
+    offset: opts.offset ?? 0,
+    limit: Math.min(opts.limit ?? 20, 50),
+  };
+  if (opts.titles?.length) body.current_position_titles = opts.titles.map((v) => ({ value: v }));
+  if (opts.domains?.length) body.current_company_domains = opts.domains.map((v) => ({ value: v, exact_match: true }));
+  if (opts.locations?.length) body.person_locations = opts.locations.map((v) => ({ value: v }));
+  const res = await fetch(`${BASE}/people/search`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`FullEnrich search ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json() as Promise<{
+    credits?: number;
+    people?: Array<{
+      full_name?: string; first_name?: string; last_name?: string;
+      location?: { city?: string; country?: string };
+      social_profiles?: { professional_network?: { url?: string; handle?: string } };
+      employment?: { current?: { title?: string; seniority?: string; company?: { name?: string; domain?: string } } };
+    }>;
+    [k: string]: unknown;
+  }>;
+}
