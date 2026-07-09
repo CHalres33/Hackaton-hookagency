@@ -59,6 +59,18 @@ await supabase.from("actions").update({ status: "approved" }).eq("id", actionId)
 - 6 signaux `new` dont un **légendaire** (score 90, pré-seed Sillage) — `rarity` est calculé : commun < 60 ≤ rare < 85 ≤ legendaire
 - `game_state` (id=1) : team_xp, streak, badges — à incrémenter côté front à l'approve
 
+## La frise relationnelle (fiche prospect)
+
+Vue `v_contact_journey` : tous les points de contact d'un prospect en chronologique — signaux reçus, interactions (email/LinkedIn), gestes (avec `escalation_level` 1→5 : email < linkedin < carte < cadeau < légendaire). À rendre comme une timeline horizontale qui **monte** — c'est la visualisation de l'échelle d'escalade émotionnelle, l'histoire « du premier email au cadeau ».
+
+```ts
+supabase.from("v_contact_journey").select("*").eq("contact_id", id).order("at");
+```
+
+## Prospection / Champions
+
+Sillage tracke désormais nos **champions** (agent 2543, watchlist 22) : quand un champion change de boîte, un signal `champion_move` arrive → nouvelle porte chaude dans un nouveau compte → Madeleine relance la relation là-bas. Section « Prospection » du dashboard : liste des champions (contacts niveau `champion`/`ambassadeur`), bouton « Scanner » (POST /api/agent/run {contact_id}), et la frise de chacun.
+
 ## Champs qui font la démo
 
 Sur une carte de validation, afficher absolument : `actions.justification` (le raisonnement signal × chaleur × passion × creep-safety — c'est ce que le jury lit), `gift_name` + `gift_url` + `gift_price_eur`, et le `message` rendu en style manuscrit.

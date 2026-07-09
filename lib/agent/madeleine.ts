@@ -246,7 +246,8 @@ export async function runMadeleine(task: string, maxIterations = 20) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      thinking: { type: "adaptive" },
+      // adaptive thinking non supporté sur haiku (utilisé en dry-run pas cher)
+      ...(MODEL.includes("haiku") ? {} : { thinking: { type: "adaptive" as const } }),
       system: SYSTEM,
       tools: TOOLS,
       messages,
