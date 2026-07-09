@@ -7,7 +7,14 @@ import { scanMarket } from "@/lib/prospection";
 
 const MODEL = process.env.MADELEINE_MODEL ?? "claude-opus-4-8";
 
+const USER_CONTEXT = process.env.MADELEINE_USER_CONTEXT ??
+  `Tu travailles pour Hook Agency — agence B2B de prospection outbound (cold calling, cold emailing, SDR outsourcing, ~40 clients). Offre : on remplit le pipe commercial de nos clients. Objectif de chaque relation que tu construis : amener le prospect à un rendez-vous de vente, puis à devenir client de Hook. Les gestes émotionnels ne sont pas gratuits : ils servent à créer la relation qui débouche sur le business.`;
+
 const SYSTEM = `Tu es Madeleine, l'agent GTM émotionnel de l'équipe. L'outbound est devenu du bruit : ton travail est de décider qui mérite un geste physique, quand, et surtout quoi — puis de rédiger le mot qui l'accompagne. Tu proposes, un humain valide toujours avant envoi.
+
+# Qui utilise Madeleine (contexte & objectif de vente)
+${USER_CONTEXT}
+Garde toujours l'objectif commercial en tête : chaque étape doit rapprocher d'une opportunité de vente. Dans la justification, indique le MOMENT DE BASCULE VENTE — à quel niveau de chaleur / après quel signal il devient pertinent de proposer un échange commercial (ex. « quand il a répondu chaleureusement à la carte → proposer un café / une démo »). Ne vends pas trop tôt : le geste crée la relation, la vente vient quand le marché est réceptif.
 
 # Échelle d'escalade émotionnelle
 email < message LinkedIn < carte manuscrite (~3€) < cadeau passion (30-150€) < cadeau légendaire (300-500€, ex: places de match de la sélection nationale du prospect).
@@ -36,10 +43,22 @@ Range les idées du plus au moins pertinent, et respecte le budget autorisé par
 # Rédaction du mot
 Ton personnel et direct, registre émotionnel adapté au signal (félicitations, encouragement, clin d'œil). Relie le signal et la passion sans être creepy. Pas de marqueurs IA : pas de tirets longs, pas de "En tant que", pas de superlatifs creux. 2-4 phrases max pour une carte manuscrite.
 
-# Plan relationnel (sortie)
-Ne propose pas une action isolée : propose LE CHEMIN COMPLET de la relation, en plusieurs appels à propose_action ordonnés par sequence_order (1, 2, 3...). Le chemin suit l'échelle d'escalade adaptée à la chaleur actuelle : ex. pour un contact froid → 1. email personnalisé, 2. message LinkedIn, 3. carte manuscrite sur un déclencheur, 4. cadeau passion, 5. cadeau légendaire si la relation le mérite un jour. Chaque étape a son propre message rédigé et sa condition de passage (dans la justification : « passer à l'étape suivante quand... »).
-Pour CHAQUE étape cadeau : mets le meilleur cadeau dans gift_name/gift_url/gift_price_eur ET AU MOINS 4 autres idées réelles, variées et locales dans gift_alternatives (soit 5+ au total ; l'humain choisit).
-La justification de chaque action doit permettre de décider en 10 secondes : signal, chaleur, passion source (avec preuve), coût, raisonnement creep-safety.`;
+# Étape obligatoire : enrichir AVANT de proposer
+Commence TOUJOURS par appeler enrich_contact pour récupérer les infos pro (email, téléphone) — sauf si déjà 'found'. Ces coordonnées conditionnent les canaux disponibles (pas d'email = pas de séquence email).
+
+# Plan relationnel (sortie) — raconter COMMENT créer la relation, jusqu'au cadeau
+Ne propose pas une action isolée : propose LE CHEMIN COMPLET de prise de contact, en plusieurs appels à propose_action ordonnés par sequence_order (1, 2, 3...). Le chemin est une histoire d'approche qui MONTE en intimité et se TERMINE TOUJOURS par au moins une étape cadeau :
+- contact froid → 1. email personnalisé, 2. message LinkedIn, 3. carte manuscrite sur un déclencheur, 4. cadeau passion (obligatoire, même modeste), 5. cadeau légendaire (aspirationnel).
+- contact chaud/signal fort → on peut démarrer plus haut, mais il y a TOUJOURS une étape cadeau.
+RÈGLE ABSOLUE : quelle que soit la chaleur ou la giftability, propose au minimum UNE étape cadeau avec 5 idées. Si la giftability est faible, propose 5 idées modestes et malines (livre, dîner, atelier) plutôt que rien.
+
+Pour CHAQUE étape, la justification doit expliquer COMMENT aborder la personne, pas juste quoi faire :
+- l'ANGLE d'approche (sur quoi accrocher : le signal ? une passion ? une phrase exacte de son post ?)
+- POURQUOI cette étape maintenant (chaleur actuelle, ce qu'on cherche à débloquer)
+- la CONDITION DE PASSAGE à l'étape suivante (« passer à la suite quand il a répondu / accepté un échange / ... »)
+Rédige aussi le message concret de l'étape (email, msg LinkedIn, mot) dans le champ message.
+
+Pour CHAQUE étape cadeau : mets le meilleur cadeau dans gift_name/gift_url/gift_price_eur ET AU MOINS 4 autres idées réelles, variées et locales dans gift_alternatives (soit 5+ au total ; l'humain choisit).`;
 
 const TOOLS: Anthropic.Messages.ToolUnion[] = [
   { type: "web_search_20260209", name: "web_search", max_uses: 8 },
@@ -207,9 +226,42 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
         company_name: c.accounts?.name,
         linkedin_url: c.linkedin_url ?? undefined,
       });
-      const first = (result as { datas?: Array<{ contact?: { emails?: Array<{ email: string }>; phones?: Array<{ number: string }> } }> }).datas?.[0];
-      const email = first?.contact?.emails?.[0]?.email;
-      const phone = first?.contact?.phones?.[0]?.number;
+      const first = (
+        result as {
+          datas?: Array<{
+            contact?: {
+              emails?: Array<{ email: string }>;
+              phones?: Array<{ number: string }>;
+              current_title?: string;
+              current_company_name?: string;
+              location?: { city?: string; country?: string };
+              linkedin_url?: string;
+              employment?: { current?: { title?: string; company?: { name?: string; domain?: string } } };
+            };
+          }>;
+        }
+      ).datas?.[0];
+      const ct = first?.contact;
+      const email = ct?.emails?.[0]?.email;
+      const phone = ct?.phones?.[0]?.number;
+      // Infos pro : titre, entreprise, ville — pour remplir la fiche
+      const title = ct?.current_title ?? ct?.employment?.current?.title;
+      const companyName = ct?.current_company_name ?? ct?.employment?.current?.company?.name;
+      const companyDomain = ct?.employment?.current?.company?.domain;
+      const city = ct?.location?.city;
+      const country = ct?.location?.country;
+
+      // Rattacher / créer le compte si on a une entreprise
+      let accountId = c.account_id as number | null;
+      if (!accountId && (companyDomain || companyName)) {
+        const { data: acc } = await db
+          .from("accounts")
+          .upsert({ domain: companyDomain ?? `${companyName}`.toLowerCase().replace(/\s+/g, "-") + ".unknown", name: companyName ?? companyDomain }, { onConflict: "domain" })
+          .select("id")
+          .single();
+        accountId = acc?.id ?? null;
+      }
+
       await db
         .from("contacts")
         .update({
@@ -217,9 +269,19 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
           email_status: email ? "found" : "failed",
           phone: phone ?? null,
           phone_status: phone ? "found" : "failed",
+          job_title: title ?? c.job_title,
+          city: city ?? c.city,
+          country: country ?? c.country,
+          account_id: accountId,
         })
         .eq("id", id);
-      return JSON.stringify({ email: email ?? "non trouvé", phone: phone ?? "non trouvé" });
+      return JSON.stringify({
+        email: email ?? "non trouvé",
+        phone: phone ?? "non trouvé",
+        job_title: title ?? "—",
+        company: companyName ?? "—",
+        city: city ?? "—",
+      });
     }
     case "save_passion": {
       const { data, error } = await db
