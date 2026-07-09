@@ -33,8 +33,10 @@ Pour une passion giftable, utilise web_search pour trouver un cadeau RÉEL et ac
 # Rédaction du mot
 Ton personnel et direct, registre émotionnel adapté au signal (félicitations, encouragement, clin d'œil). Relie le signal et la passion sans être creepy. Pas de marqueurs IA : pas de tirets longs, pas de "En tant que", pas de superlatifs creux. 2-4 phrases max pour une carte manuscrite.
 
-# Sortie
-Termine TOUJOURS par un ou plusieurs appels à propose_action. La justification doit permettre à un humain de décider en 10 secondes : signal, chaleur, passion source (avec preuve), coût, raisonnement creep-safety.`;
+# Plan relationnel (sortie)
+Ne propose pas une action isolée : propose LE CHEMIN COMPLET de la relation, en plusieurs appels à propose_action ordonnés par sequence_order (1, 2, 3...). Le chemin suit l'échelle d'escalade adaptée à la chaleur actuelle : ex. pour un contact froid → 1. email personnalisé, 2. message LinkedIn, 3. carte manuscrite sur un déclencheur, 4. cadeau passion, 5. cadeau légendaire si la relation le mérite un jour. Chaque étape a son propre message rédigé et sa condition de passage (dans la justification : « passer à l'étape suivante quand... »).
+Pour CHAQUE étape cadeau : mets le meilleur cadeau dans gift_name/gift_url/gift_price_eur ET 2-3 alternatives réelles dans gift_alternatives (l'humain choisit).
+La justification de chaque action doit permettre de décider en 10 secondes : signal, chaleur, passion source (avec preuve), coût, raisonnement creep-safety.`;
 
 const TOOLS: Anthropic.Messages.ToolUnion[] = [
   { type: "web_search_20260209", name: "web_search", max_uses: 8 },
@@ -120,10 +122,25 @@ const TOOLS: Anthropic.Messages.ToolUnion[] = [
         gift_price_eur: { type: "number" },
         passion_id: { type: "number" },
         message: { type: "string", description: "Le mot rédigé" },
-        justification: { type: "string", description: "Signal x chaleur x passion (preuve) x coût x creep-safety" },
+        justification: { type: "string", description: "Signal x chaleur x passion (preuve) x coût x creep-safety + condition de passage à l'étape suivante" },
         cost_estimate_eur: { type: "number" },
+        sequence_order: { type: "number", description: "Position dans le chemin relationnel (1 = maintenant)" },
+        gift_alternatives: {
+          type: "array",
+          description: "2-3 cadeaux alternatifs réels pour les étapes cadeau",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              url: { type: "string" },
+              price_eur: { type: "number" },
+              passion: { type: "string" },
+            },
+            required: ["name"],
+          },
+        },
       },
-      required: ["contact_id", "channel", "message", "justification"],
+      required: ["contact_id", "channel", "message", "justification", "sequence_order"],
     },
   },
 ];
@@ -224,6 +241,8 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
           message: input.message,
           justification: input.justification,
           cost_estimate_eur: input.cost_estimate_eur ?? input.gift_price_eur,
+          sequence_order: input.sequence_order ?? 1,
+          gift_alternatives: input.gift_alternatives ?? [],
         })
         .select("id")
         .single();
@@ -241,6 +260,9 @@ export async function runMadeleine(task: string, maxIterations = 20) {
   const client = new Anthropic();
   let messages: Anthropic.MessageParam[] = [{ role: "user", content: task }];
   const trace: Array<{ type: string; detail: string }> = [];
+  // web_search_20260209 filtre les résultats via code execution serveur :
+  // le container doit être repassé à chaque tour tant qu'il y a du travail en attente.
+  let containerId: string | undefined;
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await client.messages.create({
@@ -248,10 +270,12 @@ export async function runMadeleine(task: string, maxIterations = 20) {
       max_tokens: 16000,
       // adaptive thinking non supporté sur haiku (utilisé en dry-run pas cher)
       ...(MODEL.includes("haiku") ? {} : { thinking: { type: "adaptive" as const } }),
+      ...(containerId ? { container: containerId } : {}),
       system: SYSTEM,
       tools: TOOLS,
       messages,
     });
+    if (response.container?.id) containerId = response.container.id;
 
     if (response.stop_reason === "pause_turn") {
       // web_search en cours côté serveur : on ré-injecte et on continue
