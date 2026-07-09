@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { enrichAndWait } from "@/lib/fullenrich";
 import { querySignals, mapSignalType } from "@/lib/sillage";
 import { scrapeLinkedinPosts, scrapeInstagramProfile } from "@/lib/apify";
+import { scanMarket } from "@/lib/prospection";
 
 const MODEL = process.env.MADELEINE_MODEL ?? "claude-opus-4-8";
 
@@ -89,6 +90,20 @@ const TOOLS: Anthropic.Messages.ToolUnion[] = [
         creep_safety: { type: "string" },
       },
       required: ["contact_id", "category", "value", "confidence", "giftability", "source_context"],
+    },
+  },
+  {
+    name: "find_champions",
+    description:
+      "Scan de marché : cherche des décideurs (FullEnrich) par titre/entreprise/ville, les ajoute au CRM et les place sous champion tracking Sillage (leurs changements de poste déclencheront des signaux). Utilise-le pour la prospection : trouver de nouveaux champions potentiels.",
+    input_schema: {
+      type: "object",
+      properties: {
+        titles: { type: "array", items: { type: "string" }, description: "Titres cibles (défaut: Head of Sales, VP Sales, CRO, Head of Growth)" },
+        domains: { type: "array", items: { type: "string" }, description: "Domaines d'entreprises (défaut: les 20 comptes trackés)" },
+        locations: { type: "array", items: { type: "string" }, description: "Villes (défaut: Paris)" },
+        limit: { type: "number", description: "Max résultats (défaut 10)" },
+      },
     },
   },
   {
@@ -218,6 +233,10 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
         .select("id")
         .single();
       return JSON.stringify(error ? { error: error.message } : { passion_id: data.id });
+    }
+    case "find_champions": {
+      const result = await scanMarket(input as Parameters<typeof scanMarket>[0]);
+      return JSON.stringify(result);
     }
     case "scrape_social": {
       if (input.source === "linkedin") {
