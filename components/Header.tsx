@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase-browser";
 import type { GameState } from "@/lib/types";
 
-const NAV = [
-  { href: "/", label: "Fil d'actualité" },
-  { href: "/radar", label: "Radar pipeline" },
-  { href: "/validation", label: "File de validation" },
-  { href: "/prospects", label: "Prospects" },
+const BADGES = [
+  { icon: "🎯", name: "Premier geste" },
+  { icon: "⚡", name: "10 signaux traités" },
+  { icon: "🏆", name: "Chasseur légendaire" },
+  { icon: "🔥", name: "Streak 7 jours" },
 ];
 
+const XP_MAX = 500;
+
 export default function Header() {
-  const pathname = usePathname();
   const [game, setGame] = useState<GameState | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showCrm, setShowCrm] = useState(false);
@@ -35,61 +36,72 @@ export default function Header() {
   }, []);
 
   const xp = game?.team_xp ?? 0;
-  const levelPct = xp % 500;
+  const level = Math.floor(xp / XP_MAX) + 1;
+  const xpCurrent = xp % XP_MAX;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-bdr bg-bg/85 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
-        <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <span className="text-2xl">🧁</span> Madeleine
-        </Link>
+    <header className="sticky top-0 z-40 flex h-[66px] shrink-0 items-center gap-6 border-b border-bdr bg-bg/85 px-5 backdrop-blur">
+      <Link href="/" className="flex items-center gap-2.5">
+        <span className="text-[23px] drop-shadow-[0_2px_6px_rgba(255,61,139,.4)]">🧁</span>
+        <span className="font-head text-[19px] font-bold tracking-tight">Madeleine</span>
+      </Link>
 
-        <nav className="flex items-center gap-1 text-sm">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`rounded-full px-3 py-1.5 transition ${
-                pathname === n.href
-                  ? "bg-pink/15 text-pink"
-                  : "text-muted hover:text-txt hover:bg-panel2"
-              }`}
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-4">
-          <div className="hidden items-center gap-3 md:flex">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2 text-xs text-muted">
-                <span className="font-medium text-gold">⚡ {xp} XP</span>
-                <span>🔥 streak {game?.streak ?? 0}</span>
-                <span title="badges">{(game?.badges ?? []).slice(0, 3).join(" ")}</span>
-              </div>
-              <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-panel2">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-pink to-gold transition-all"
-                  style={{ width: `${(levelPct / 500) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowCrm(true)}
-            className="rounded-full border border-bdr px-3 py-1.5 text-sm text-muted hover:text-txt"
-          >
-            Connecter votre CRM
-          </button>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="rounded-full bg-pink px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
-          >
-            + Ajouter un prospect
-          </button>
+      <div className="flex items-center gap-2.5 pl-2">
+        <div className="flex h-[26px] w-[26px] items-center justify-center rounded-lg bg-gradient-to-br from-pink to-fuchsia-600 font-head text-xs font-bold shadow-[0_3px_10px_-2px_rgba(255,61,139,.6)]">
+          {level}
         </div>
+        <div className="flex w-[190px] flex-col gap-1">
+          <div className="flex justify-between text-[10.5px] font-semibold text-muted">
+            <span>XP ÉQUIPE · Niv. {level}</span>
+            <span className="text-[#c9c9d2]">{xpCurrent} / {XP_MAX}</span>
+          </div>
+          <div className="h-[7px] overflow-hidden rounded-full bg-white/[.08]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-pink to-gold shadow-[0_0_12px_rgba(255,61,139,.6)] transition-all duration-700"
+              style={{ width: `${(xpCurrent / XP_MAX) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div
+        title="Notifications traitées < 24h"
+        className="flex items-center gap-1.5 rounded-[10px] border border-orange/25 bg-orange/10 px-2.5 py-1.5"
+      >
+        <span className="text-[15px]">🔥</span>
+        <span className="font-head text-sm font-bold text-[#ffb774]">{game?.streak ?? 0}</span>
+        <span className="text-[10.5px] font-semibold text-[#c99a6a]">streak</span>
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        {BADGES.map((b) => (
+          <div
+            key={b.icon}
+            title={b.name}
+            className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border border-gold/25 bg-gold/10 text-sm"
+          >
+            {b.icon}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1" />
+
+      <button
+        onClick={() => setShowCrm(true)}
+        className="whitespace-nowrap rounded-[11px] border border-white/[.14] bg-white/[.04] px-3.5 py-2 text-[13px] font-semibold text-txt/90 hover:bg-white/[.08]"
+      >
+        Connecter votre CRM
+      </button>
+      <button
+        onClick={() => setShowAdd(true)}
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-[11px] bg-gradient-to-br from-pink to-[#e0247a] px-4 py-2 text-[13px] font-bold text-white shadow-[0_6px_18px_-6px_rgba(255,61,139,.7)] hover:opacity-95"
+      >
+        <span className="text-base leading-none">＋</span> Ajouter un prospect
+      </button>
+
+      <div className="flex h-[38px] w-[38px] items-center justify-center rounded-full border-[1.5px] border-white/[.14] bg-gradient-to-br from-[#3a3a44] to-[#22222a] text-[13px] font-bold">
+        ML
       </div>
 
       {showAdd && <AddProspectModal onClose={() => setShowAdd(false)} />}
