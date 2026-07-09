@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase-browser";
 import { CHANNEL_META, SIGNAL_LABELS, type Action, type Signal } from "@/lib/types";
 import RarityBadge from "@/components/RarityBadge";
 
 export default function Feed() {
+  const router = useRouter();
   const [signals, setSignals] = useState<Signal[]>([]);
   const [recentActions, setRecentActions] = useState<Action[]>([]);
   const [running, setRunning] = useState<Record<number, boolean>>({});
@@ -44,16 +46,15 @@ export default function Feed() {
 
   async function treat(s: Signal) {
     setRunning((r) => ({ ...r, [s.id]: true }));
-    try {
-      await fetch("/api/agent/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signal_id: s.id }),
-      });
-    } finally {
-      setRunning((r) => ({ ...r, [s.id]: false }));
-      load();
-    }
+    // Lance l'agent SANS attendre (le run dure 2-3 min) et emmène direct sur la fiche
+    // du prospect (ou du compte) : les passions/actions s'y afficheront en realtime.
+    fetch("/api/agent/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signal_id: s.id }),
+    }).catch(() => {});
+    if (s.contact_id) router.push(`/prospect/${s.contact_id}`);
+    else if (s.account_id) router.push(`/prospects?account=${s.account_id}`);
   }
 
   const topAccounts = Object.values(
