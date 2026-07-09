@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase";
 import { enrichAndWait } from "@/lib/fullenrich";
 import { querySignals, mapSignalType } from "@/lib/sillage";
+import { scrapeLinkedinPosts, scrapeInstagramProfile } from "@/lib/apify";
 
 const MODEL = process.env.MADELEINE_MODEL ?? "claude-opus-4-8";
 
@@ -86,6 +87,19 @@ const TOOLS: Anthropic.Messages.ToolUnion[] = [
         creep_safety: { type: "string" },
       },
       required: ["contact_id", "category", "value", "confidence", "giftability", "source_context"],
+    },
+  },
+  {
+    name: "scrape_social",
+    description:
+      "Scrape les posts récents d'un profil social pour le scan passions. source=linkedin (URL de profil, contexte pro-public : passions nommables) ou source=instagram (username, contexte hors-pro : guide le cadeau mais jamais révélé). Lent (~30-60s), à utiliser après get_contact.",
+    input_schema: {
+      type: "object",
+      properties: {
+        source: { type: "string", enum: ["linkedin", "instagram"] },
+        target: { type: "string", description: "URL profil LinkedIn ou username Instagram" },
+      },
+      required: ["source", "target"],
     },
   },
   {
@@ -187,6 +201,14 @@ async function execTool(name: string, input: Record<string, unknown>): Promise<s
         .select("id")
         .single();
       return JSON.stringify(error ? { error: error.message } : { passion_id: data.id });
+    }
+    case "scrape_social": {
+      if (input.source === "linkedin") {
+        const posts = await scrapeLinkedinPosts(input.target as string);
+        return JSON.stringify({ source_context: "pro_public", posts });
+      }
+      const profile = await scrapeInstagramProfile(input.target as string);
+      return JSON.stringify({ source_context: "hors_pro", profile: profile ?? "profil introuvable" });
     }
     case "propose_action": {
       const { data, error } = await db
