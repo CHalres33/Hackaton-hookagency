@@ -28,15 +28,17 @@ Giftability = peut-on acheter un truc concret ? (concert = 0.9, "aime la nature"
 - Sphère privée (famille, enfants, santé, religion, politique, orientation) → EXCLUE totalement, ni cadeau ni mot.
 - Explique ton raisonnement creep-safety dans le champ justification de chaque action.
 
-# Choix du cadeau
-Pour une passion giftable, utilise web_search pour trouver un cadeau RÉEL et achetable : le vrai concert à venir dans la ville du prospect, le vrai match, le vrai livre. Donne le lien d'achat et le prix. Matche le budget au niveau autorisé par la matrice.
+# Choix du cadeau — AU MOINS 5 idées, réelles, locales et variées
+Pour toute étape cadeau, propose TOUJOURS au minimum 5 idées de cadeaux — 1 recommandation principale (gift_name/gift_url/gift_price_eur) + au moins 4 dans gift_alternatives. Utilise web_search pour que chaque idée soit RÉELLE et achetable maintenant (événement daté à venir, page produit, resto existant), avec lien + prix.
+Les 5 idées doivent couvrir des REGISTRES différents et être ANCRÉES DANS LA VILLE du prospect (spectacle/one-man-show, concert de son style, événement ou match sportif, expérience/atelier, restaurant ou table remarquable, livre/objet lié à sa passion). Ex. pour un prospect à Paris amateur d'humour et de foot : places du prochain spectacle au Point-Virgule + billets PSG match à venir + dîner dans une table du 11e + atelier lié à sa passion + beau livre signé. Chaque idée porte sa passion source et son prix.
+Range les idées du plus au moins pertinent, et respecte le budget autorisé par la matrice (signal × chaleur × tier) — si le budget est bas, propose 5 idées bon marché plutôt qu'une chère.
 
 # Rédaction du mot
 Ton personnel et direct, registre émotionnel adapté au signal (félicitations, encouragement, clin d'œil). Relie le signal et la passion sans être creepy. Pas de marqueurs IA : pas de tirets longs, pas de "En tant que", pas de superlatifs creux. 2-4 phrases max pour une carte manuscrite.
 
 # Plan relationnel (sortie)
 Ne propose pas une action isolée : propose LE CHEMIN COMPLET de la relation, en plusieurs appels à propose_action ordonnés par sequence_order (1, 2, 3...). Le chemin suit l'échelle d'escalade adaptée à la chaleur actuelle : ex. pour un contact froid → 1. email personnalisé, 2. message LinkedIn, 3. carte manuscrite sur un déclencheur, 4. cadeau passion, 5. cadeau légendaire si la relation le mérite un jour. Chaque étape a son propre message rédigé et sa condition de passage (dans la justification : « passer à l'étape suivante quand... »).
-Pour CHAQUE étape cadeau : mets le meilleur cadeau dans gift_name/gift_url/gift_price_eur ET 2-3 alternatives réelles dans gift_alternatives (l'humain choisit).
+Pour CHAQUE étape cadeau : mets le meilleur cadeau dans gift_name/gift_url/gift_price_eur ET AU MOINS 4 autres idées réelles, variées et locales dans gift_alternatives (soit 5+ au total ; l'humain choisit).
 La justification de chaque action doit permettre de décider en 10 secondes : signal, chaleur, passion source (avec preuve), coût, raisonnement creep-safety.`;
 
 const TOOLS: Anthropic.Messages.ToolUnion[] = [
@@ -142,16 +144,19 @@ const TOOLS: Anthropic.Messages.ToolUnion[] = [
         sequence_order: { type: "number", description: "Position dans le chemin relationnel (1 = maintenant)" },
         gift_alternatives: {
           type: "array",
-          description: "2-3 cadeaux alternatifs réels pour les étapes cadeau",
+          description:
+            "Au moins 4 idées de cadeaux alternatives (avec la reco principale = 5+ au total) : réelles, achetables, variées en registre (spectacle, concert, sport, expérience, resto, objet) et ancrées dans la ville du prospect.",
           items: {
             type: "object",
             properties: {
               name: { type: "string" },
-              url: { type: "string" },
+              url: { type: "string", description: "Lien d'achat réel" },
               price_eur: { type: "number" },
-              passion: { type: "string" },
+              category: { type: "string", description: "concert | one_man_show | sport | experience | restaurant | objet | livre" },
+              city: { type: "string" },
+              passion: { type: "string", description: "Passion source" },
             },
-            required: ["name"],
+            required: ["name", "category"],
           },
         },
       },
