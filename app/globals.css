@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0a0a0e;
+  --panel: #121218;
+  --panel-2: #191921;
+  --border: #26262f;
+  --text: #f2f2f5;
+  --muted: #8b8b98;
+  --pink: #ff3d8a;
+  --pink-soft: rgba(255, 61, 138, 0.12);
+  --gold: #f5c14e;
+  --gold-soft: rgba(245, 193, 78, 0.12);
+  --blue: #5aa9ff;
+  --green: #4ade80;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel-2);
+  --color-bdr: var(--border);
+  --color-txt: var(--text);
+  --color-muted: var(--muted);
+  --color-pink: var(--pink);
+  --color-gold: var(--gold);
+  --color-blu: var(--blue);
+  --color-grn: var(--green);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-hand: var(--font-caveat);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+@keyframes haloPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(245, 193, 78, 0.5), 0 0 24px rgba(245, 193, 78, 0.18); }
+  50% { box-shadow: 0 0 0 1px rgba(245, 193, 78, 0.9), 0 0 42px rgba(245, 193, 78, 0.38); }
+}
+.halo-legendaire { animation: haloPulse 2.2s ease-in-out infinite; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-in { animation: slideIn 0.35s ease-out; }
+
+@keyframes pulseSoft { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.pulse-soft { animation: pulseSoft 1.4s ease-in-out infinite; }
+
+.paper {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,0.06), transparent 40%),
+    repeating-linear-gradient(0deg, #f7f2e8, #f7f2e8 28px, #efe9dc 29px);
+  color: #2b2620;
 }

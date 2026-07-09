@@ -1,65 +1,134 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase-browser";
+import { SIGNAL_LABELS, type Signal } from "@/lib/types";
+import RarityBadge from "@/components/RarityBadge";
+
+export default function Feed() {
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [running, setRunning] = useState<Record<number, boolean>>({});
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from("signals")
+      .select("*, accounts(*), contacts(*)")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setSignals((data as Signal[]) ?? []);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const ch = supabase
+      .channel("signals-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "signals" }, load)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [load]);
+
+  async function treat(s: Signal) {
+    setRunning((r) => ({ ...r, [s.id]: true }));
+    try {
+      await fetch("/api/agent/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signal_id: s.id }),
+      });
+    } finally {
+      setRunning((r) => ({ ...r, [s.id]: false }));
+      load();
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div>
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Fil d&apos;actualité</h1>
+          <p className="mt-1 text-sm text-muted">
+            Signaux détectés par Sillage sur les 20 comptes suivis. Le physique se mérite.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <Link href="/validation" className="text-sm text-pink hover:underline">
+          Voir la file de validation →
+        </Link>
+      </div>
+
+      <div className="space-y-3">
+        {signals.map((s) => {
+          const meta = SIGNAL_LABELS[s.type] ?? { label: s.type, emoji: "📡" };
+          const summary =
+            (s.payload?.summary as string) ??
+            `${meta.label} chez ${s.accounts?.name ?? "un compte suivi"}`;
+          const isLeg = s.rarity === "legendaire";
+          return (
+            <div
+              key={s.id}
+              className={`slide-in flex items-center gap-4 rounded-2xl border border-bdr bg-panel p-4 ${
+                isLeg ? "halo-legendaire" : ""
+              }`}
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-panel2 text-xl">
+                {meta.emoji}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">
+                    {s.contacts ? `${s.contacts.firstname} ${s.contacts.lastname}` : s.accounts?.name}
+                  </span>
+                  {s.contacts?.job_title && (
+                    <span className="truncate text-sm text-muted">· {s.contacts.job_title}</span>
+                  )}
+                  <RarityBadge rarity={s.rarity} score={s.score} />
+                </div>
+                <p className="mt-0.5 truncate text-sm text-muted">{summary}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {s.contact_id && (
+                  <Link
+                    href={`/prospect/${s.contact_id}`}
+                    className="rounded-full border border-bdr px-3 py-1.5 text-xs text-muted hover:text-txt"
+                  >
+                    Fiche
+                  </Link>
+                )}
+                {s.status === "new" && (
+                  <button
+                    onClick={() => treat(s)}
+                    disabled={running[s.id]}
+                    className="rounded-full bg-pink px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {running[s.id] ? "Madeleine réfléchit…" : "Traiter"}
+                  </button>
+                )}
+                {s.status === "processing" && (
+                  <span className="pulse-soft rounded-full bg-pink/15 px-3 py-1.5 text-xs text-pink">
+                    Agent en cours…
+                  </span>
+                )}
+                {s.status === "treated" && (
+                  <Link
+                    href="/validation"
+                    className="rounded-full bg-grn/15 px-3 py-1.5 text-xs text-grn"
+                  >
+                    Proposition prête ✓
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {signals.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-bdr p-12 text-center text-muted">
+            Aucun signal pour l&apos;instant. Ils arrivent en temps réel dès que Sillage détecte du
+            mouvement.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
