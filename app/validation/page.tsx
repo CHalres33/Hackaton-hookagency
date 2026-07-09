@@ -18,7 +18,8 @@ export default function ValidationQueue() {
       .from("actions")
       .select("*, contacts(*, accounts(*)), signals(*), passions(*)")
       .eq("status", "proposed")
-      .order("created_at", { ascending: false });
+      .order("contact_id", { ascending: true })
+      .order("sequence_order", { ascending: true });
     setActions((data as Action[]) ?? []);
   }, []);
 
@@ -94,7 +95,14 @@ export default function ValidationQueue() {
                   · {a.contacts?.job_title} · {a.contacts?.accounts?.name}
                 </span>
               </div>
-              <EscalationLadder selected={a.channel} />
+              <div className="flex items-center gap-3">
+                {a.sequence_order != null && (
+                  <span className="rounded-full bg-panel2 px-2.5 py-1 text-[11px] text-muted">
+                    Étape {a.sequence_order} du chemin
+                  </span>
+                )}
+                <EscalationLadder selected={a.channel} />
+              </div>
             </div>
 
             {a.gift_name && (
@@ -116,6 +124,33 @@ export default function ValidationQueue() {
                 {a.gift_price_eur != null && (
                   <div className="text-lg font-semibold text-gold">{a.gift_price_eur}€</div>
                 )}
+              </div>
+            )}
+
+            {(a.gift_alternatives?.length ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-muted">Alternatives :</span>
+                {a.gift_alternatives.map((alt, i) => (
+                  <button
+                    key={i}
+                    title={alt.passion ? `passion : ${alt.passion}` : undefined}
+                    onClick={async () => {
+                      await supabase
+                        .from("actions")
+                        .update({
+                          gift_name: alt.name,
+                          gift_url: alt.url ?? null,
+                          gift_price_eur: alt.price_eur ?? null,
+                        })
+                        .eq("id", a.id);
+                      load();
+                    }}
+                    className="rounded-full border border-bdr px-3 py-1 text-[11px] text-muted hover:border-gold hover:text-gold"
+                  >
+                    {alt.name}
+                    {alt.price_eur != null && ` · ${alt.price_eur}€`}
+                  </button>
+                ))}
               </div>
             )}
 

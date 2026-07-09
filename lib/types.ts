@@ -81,6 +81,8 @@ export type Action = {
   cost_estimate_eur: number | null;
   status: "proposed" | "approved" | "rejected" | "sent";
   handwrytten_order_id: string | null;
+  sequence_order: number;
+  gift_alternatives: { name: string; url?: string; price_eur?: number; passion?: string }[];
   created_at: string;
   contacts?: Contact | null;
   signals?: Signal | null;
