@@ -6,6 +6,18 @@ import { supabase } from "@/lib/supabase-browser";
 import { LEVELS, type Contact, type Passion, type Relationship, type Signal } from "@/lib/types";
 import RarityBadge from "@/components/RarityBadge";
 
+type JourneyItem = {
+  contact_id: number;
+  at: string;
+  kind: "interaction" | "signal" | "action";
+  label: string;
+  detail: string | null;
+  cost: number | null;
+  escalation_level: number;
+};
+
+const KIND_EMOJI: Record<string, string> = { interaction: "💬", signal: "📡", action: "🎁" };
+
 const CAT_EMOJI: Record<string, string> = {
   musique: "🎸",
   sport_pratique: "🏃",
@@ -36,19 +48,22 @@ export default function ProspectPage() {
   const [passions, setPassions] = useState<Passion[]>([]);
   const [rel, setRel] = useState<Relationship | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [journey, setJourney] = useState<JourneyItem[]>([]);
   const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: c }, { data: p }, { data: r }, { data: s }] = await Promise.all([
+    const [{ data: c }, { data: p }, { data: r }, { data: s }, { data: j }] = await Promise.all([
       supabase.from("contacts").select("*, accounts(*)").eq("id", contactId).single(),
       supabase.from("passions").select("*").eq("contact_id", contactId).order("confidence", { ascending: false }),
       supabase.from("relationships").select("*").eq("contact_id", contactId).maybeSingle(),
       supabase.from("signals").select("*, accounts(*)").eq("contact_id", contactId).order("created_at", { ascending: false }),
+      supabase.from("v_contact_journey").select("*").eq("contact_id", contactId).order("at", { ascending: false }).limit(15),
     ]);
     setContact(c as Contact);
     setPassions((p as Passion[]) ?? []);
     setRel(r as Relationship | null);
     setSignals((s as Signal[]) ?? []);
+    setJourney((j as JourneyItem[]) ?? []);
   }, [contactId]);
 
   useEffect(() => {
@@ -219,6 +234,39 @@ export default function ProspectPage() {
               matching cadeau… (30-90s)
             </div>
           )}
+        </div>
+
+        <h2 className="mb-3 mt-8 text-lg font-semibold">Frise de la relation</h2>
+        <div className="rounded-2xl border border-bdr bg-panel p-5">
+          <div className="space-y-0">
+            {journey.map((j, i) => (
+              <div key={i} className="relative flex gap-4 pb-5 last:pb-0">
+                {i < journey.length - 1 && (
+                  <div className="absolute left-[15px] top-8 bottom-0 w-px bg-bdr" />
+                )}
+                <div
+                  className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm ${
+                    j.kind === "action" ? "bg-gold/15" : j.kind === "signal" ? "bg-pink/15" : "bg-panel2"
+                  }`}
+                >
+                  {KIND_EMOJI[j.kind]}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium capitalize">{j.label.replace(/_/g, " ")}</span>
+                    <span className="shrink-0 text-xs text-muted">
+                      {new Date(j.at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    </span>
+                  </div>
+                  {j.detail && <p className="mt-0.5 text-xs text-muted">{j.detail}</p>}
+                  {j.cost != null && <span className="text-xs text-gold">{j.cost}€</span>}
+                </div>
+              </div>
+            ))}
+            {journey.length === 0 && (
+              <p className="text-sm text-muted">Aucune interaction enregistrée pour l&apos;instant.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
